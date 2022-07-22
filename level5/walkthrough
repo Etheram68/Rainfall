@@ -3,7 +3,7 @@ J'arrive sur le niveau 5
 	level5@RainFall:~$ ls -la level5
 	-rwsr-s---+ 1 level6 users 5385 Mar  6  2016 level5
 
-Il y a un fichier level4 appartenant avec les droit d'execution de l'user level6
+Il y a un fichier level5 appartenant avec les droit d'execution de l'user level6
 
 J'envoie le fichier dans mon linux pour le decompiller avec cutter
 
